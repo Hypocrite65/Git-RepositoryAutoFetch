@@ -1,62 +1,78 @@
 #!/bin/bash
-echo "Init">log.rtf
-MaxCnt=15
-CurCnt=1
-PullFailedCnt=0
-#stage parent path
-CurrentPath=`pwd`
+MaxRepoSrh=3
+CurRepoCnt=1
+FetchFailedRepoCnt=0
 
 #declare function body
 function auto_fetch(){
+	#stage parent path
+	ParentPath=`pwd`
+	#echo "${ParentPath: 0: 3}"
+	ParentPath=${ParentPath: 0: 3}
+	#cd parent path for create a log file which will appending issues by the recursive fetch
+	cd "$ParentPath"
+	echo "Init">GitAutoFetchLogFile.rtf
+	#split line
 	echo "----- start -----"
+	#total display
 	echo "The number of git repository is $#"
-	for GitPath in $*
+	for ProcessingRepo in $*
 	do
+		#if the path is Non, brake
 		if [ 0 -eq "$#" ]
 		then
 			echo "Non"
 			break
 		fi
-
-		if test $CurCnt -gt $MaxCnt
+		#the max repo limit
+		if test $CurRepoCnt -gt $MaxRepoSrh
 		then
-			echo "Too many repository, the limit times can be changed by variable <MaxCnt>, and now it is $MaxCnt"
-			CurCnt=1
+			echo "Too many repository, the limit times can be changed using variable <MaxRepoSrh>, and now it is $MaxRepoSrh"
+			CurRepoCnt=1
 			break
 		fi
-		echo "----- $CurCnt/$# -----"
-		let "CurCnt++"
-		cd "$CurrentPath"
-		echo "Current path is $CurrentPath"
-		echo "Git repository path is $GitPath"
-	 	#enter and pull 
-		cd "$GitPath" && git pull
+		#display the index of repo
+		echo "----- $CurRepoCnt/$# -----"
+		let "CurRepoCnt++"
+		#becase of the cmd, the current will been changed by cd and fetch, for the next cycle, we have to make the path back
+		cd "$ParentPath"
+		#echo "Current path is $ParentPath"
+		echo "Git repository path is $ProcessingRepo"
+	 	#enter and fetch 
+		cd "$ProcessingRepo" && git fetch
+		#check whether the cmd completed
 		if [ "$?" -eq 0 ]
 		then
 			echo "Update completed!"
 		else
-			#pull merge error, use fetch cmd, but pull can also fetch the revision
-			cd "$CurrentPath"
-			#cd "$GitPath" && git fetch
-			let "PullFailedCnt++"
-			echo "$PullFailedCnt- $GitPath">>log.rtf
+			#fetch error
+			cd "$ParentPath"
+			#cd "$ProcessingRepo" && git fetch
+			let "FetchFailedRepoCnt++"
+			#print the path that fetch failed in the log file named GitAutoFetchLogFile
+			echo "$FetchFailedRepoCnt- $ProcessingRepo">>GitAutoFetchLogFile.rtf
 		fi
 	done
-	cd "$CurrentPath"
-		if [ "$PullFailedCnt" -eq 0 ]
-		then 
-			sed -i "s/Init/Congratulations! All the repository we found have been upgrade!/g" log.rtf
-		else
-			sed -i "s/Init/On no! There are $PullFailedCnt repositories can not update automaticaly, may be the local file has diff with remote, use the command <git status> to make sure current status/g" log.rtf
-		fi
+	#go to the parent path to substitute the first line "Init" by the result of script
+	cd "$ParentPath"
+	if [ "$FetchFailedRepoCnt" -eq 0 ]
+	then 
+		sed -i "s/Init/Congratulations! All the repository we found have been upgrade!/g" GitAutoFetchLogFile.rtf
+	else
+		sed -i "s/Init/On no! There are $FetchFailedRepoCnt repositories can not update automaticaly, may be network error or the local file has diff with remote, use the command <git status> to confirm current status/g" GitAutoFetchLogFile.rtf
+		#reset the cnt, or the next invoke will cnt continue
+		FetchFailedRepoCnt=0
+	fi
 }
 #auto_fetch `find . -name .git|xargs dirname`
 #auto_fetch .
 #echo "Enter D://"
 #auto_fetch `find D://* -mount -maxdepth 4 -not -path "C:\\*" -a -name .git|xargs dirname`
-#echo "Enter E://"
-#auto_fetch `find E://* -mount -maxdepth 4 -not -path "C:\\*" -a -name .git|xargs dirname`
+echo "Enter E://"
+cd "E://"
+auto_fetch `find E://* -mount -maxdepth 4 -not -path "C:\\*" -a -name .git|xargs dirname`
 echo "Enter F://"
+cd "F://"
 auto_fetch `find F://* -mount -maxdepth 4 -not -path "C:\\*" -a -name .git|xargs dirname`
 #echo "Enter G://"
 #auto_fetch `find G://* -mount -maxdepth 4 -not -path "C:\\*" -a -name .git|xargs dirname`

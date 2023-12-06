@@ -4,11 +4,13 @@ rem This is a BAT file to run a shell script at a specific time.
 
 rem Set the time you want to run the shell script.
 rem In this example, the shell script will be run at 10:00 AM.
-set time=10:00 AM
+set time=10:00 
+set CurrentPath=%cd%
 
 rem Set the path to the shell script.
 rem In this example, the shell script is located in the current directory.
-set script_path=AutoFetch_debug.sh
+set script_path=%CurrentPath%\AutoFetch_debug.sh
 
 rem Run the `at` command to schedule the shell script to run at the specified time.
-at %time% %script_path%
+rem at %time% %script_path%
+schtasks.exe /create /tr %script_path% /sc DAILY /tn "Git repository fetch timing automactically" /st %time%
