@@ -42,20 +42,21 @@ function auto_fetch(){
 			echo "$PullFailedCnt- $GitPath">>log.rtf
 		fi
 	done
+	cd "$CurrentPath"
 		if [ "$PullFailedCnt" -eq 0 ]
 		then 
-			sed -i "" "s/Init/Congratulations! All the repository we found have been upgrade!/g" log.rtf
+			sed -i "s/Init/Congratulations! All the repository we found have been upgrade!/g" log.rtf
 		else
-			sed -i "" "s/Init/On no! There are $PullFailedCnt repositories can not update automaticaly, may be the local file has diff with remote, use the command <git status> to make sure current status/g" log.rtf
+			sed -i "s/Init/On no! There are $PullFailedCnt repositories can not update automaticaly, may be the local file has diff with remote, use the command <git status> to make sure current status/g" log.rtf
 		fi
 }
-auto_fetch `find . -name .git|xargs dirname`
+#auto_fetch `find . -name .git|xargs dirname`
 #auto_fetch .
 #echo "Enter D://"
 #auto_fetch `find D://* -mount -maxdepth 4 -not -path "C:\\*" -a -name .git|xargs dirname`
 #echo "Enter E://"
 #auto_fetch `find E://* -mount -maxdepth 4 -not -path "C:\\*" -a -name .git|xargs dirname`
-#echo "Enter F://"
-#auto_fetch `find F://* -mount -maxdepth 4 -not -path "C:\\*" -a -name .git|xargs dirname`
+echo "Enter F://"
+auto_fetch `find F://* -mount -maxdepth 4 -not -path "C:\\*" -a -name .git|xargs dirname`
 #echo "Enter G://"
 #auto_fetch `find G://* -mount -maxdepth 4 -not -path "C:\\*" -a -name .git|xargs dirname`
