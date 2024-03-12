@@ -79,9 +79,9 @@ function f_log(){
 	echo "↑---- end -----" >> AutoGitTaskLog.txt
 
 	if [ $OperateFailedRepoCnt -eq 0 ]; then
-		sed -i "s/Init/Congratulations! We have found a total of $TotalRepoCnt repositories that have been successfully operated!\n在此盘下共检测到 $TotalRepoCnt 个仓库，均已操作成功！/g" AutoGitTaskLog.txt
+		sed -i "s/Init/Congratulations! We have found a total of $TotalRepoCnt repositories that have been successfully operated! /g" AutoGitTaskLog.txt
 	else
-		sed -i "s/Init/Unexpectedly!  A total of $TotalRepoCnt repositories were detected under this disk, Among them, $OperateFailedRepoCnt repositories were not successfully operated. The specific content is as follows.\n在此盘下共检测到 $TotalRepoCnt 个仓库，其中有 $OperateFailedRepoCnt 个仓库未能成功操作，具体内容如下。/g" AutoGitTaskLog.txt
+		sed -i "s/Init/Unexpectedly!  A total of $TotalRepoCnt repositories were detected under this disk, Among them, $OperateFailedRepoCnt repositories were not successfully operated. The specific content is as follows. /g" AutoGitTaskLog.txt
 	fi
 	echo "" >> AutoGitTaskLog.txt
 	echo "The index parent path is ($IndexParentPath)" >> AutoGitTaskLog.txt
@@ -128,7 +128,7 @@ function f_find(){
 	while IFS= read -r line; do
 		((TotalRepoCnt+=1)) 
 		PathArray+=("$line")
-	done < <(find "$IndexParentPath" -type d -name ".git")
+	done < <(find "$IndexParentPath" -maxdepth 4 -a -type d -name ".git")
 }
 
 
