@@ -1,30 +1,29 @@
 #!/bin/bash
 # $1 = index parent path.
 # $2 = log file path.
-# $3 = operate.(fetch/push)
+# $3 = operate.(Fetch/Push)
 # $4 = max operated repos
+# $5 = Debug log(0 = no print; 1 = print info in shell)
 
 #####define start#####
 IndexParentPath="$1"
 LogFilePath="$2"
 GitOperate="$3"
 MaxRepoSrh="$4"
+Debug="$5"
+TotalRepoCnt=0
 CurRepoCnt=1
-FetchFailedRepoCnt=0
+OperatePASSRepoCnt=0
+OperateFailedRepoCnt=0
 Current_time=`date +"%Y-%m-%d %H:%M:%S"`
-
 
 #check input parameters valid 
 function f_check_var(){	
 	#check IndexParentPath
 	if [ -d "$IndexParentPath" ]; then
 	 	:
-		# echo "$IndexParentPath is a valid directory path."
-	elif [ -f "$IndexParentPath" ]; then
-	 	:
-		# echo "$IndexParentPath is a valid file path."
 	else
-		echo "$IndexParentPath is not a valid path."
+		echo "Index parent path: $IndexParentPath is not a valid directory path."
 		exit 1
 	fi
 
@@ -32,15 +31,12 @@ function f_check_var(){
 	#check LogFilePath
 	if [ -d "$LogFilePath" ]; then
 	 	:
-		# echo "$LogFilePath is a valid directory path."
-	elif [ -f "$LogFilePath" ]; then
-	 	:
-		# echo "$LogFilePath is a valid file path."
 	else
-		echo "$LogFilePath is not a valid path."
+		echo "Log file path: $LogFilePath is not a valid directory path."
 		exit 1
 	fi
 	cd "$LogFilePath" && echo "Init">AutoGitTaskLog.txt
+	echo "Run time is :$Current_time">>AutoGitTaskLog.txt
 
 
 	#check GitOperate
@@ -48,14 +44,14 @@ function f_check_var(){
 		GitOperate=Fetch
 		echo "No Target Operate, use default value $GitOperate"
 	elif [ "Fetch" != "$GitOperate" ] && [ "Pull" != "$GitOperate" ]; then
-		echo "ERROR CMD, used Fetch/Pull"
+		sed -i "s/Init/ERROR CMD, used Fetch or Pull /g" AutoGitTaskLog.txt
 		exit 1
 	else
 		:
 	fi
 
 	#check MaxRepoSrh
-	if [ -z "$MaxRepoSrh"]; then
+	if [ -z "$MaxRepoSrh" ]; then
 		MaxRepoSrh=10
 		echo "No Max RepoSrh, use default value $MaxRepoSrh"
 	fi
@@ -64,95 +60,129 @@ function f_check_var(){
 
 #add log info
 function f_log(){
-	local log_path=$LogFilePath
-	local index=$1
-	local repos=$2
-	if [ "$#" -ne 0 ]; then
-		cd "$log_path" && echo "$index $repos">>AutoGitTaskLog.txt
+	#go to the LogFilePath to substitute the first line "Init" by the result of script
+	cd "$LogFilePath"
+	echo "" >> AutoGitTaskLog.txt
+	echo "" >> AutoGitTaskLog.txt
+	echo "↓---- Success -----" >> AutoGitTaskLog.txt
+	for path in "${Success_repos[@]}"; do
+		((OperatePASSRepoCnt+=1))
+		echo "|--->$OperatePASSRepoCnt $path" >> AutoGitTaskLog.txt
+	done
+	echo "↑---- end -----" >> AutoGitTaskLog.txt
+	echo "" >> AutoGitTaskLog.txt
+	echo "↓---- Failed -----" >> AutoGitTaskLog.txt
+	for path in "${Failed_repos[@]}"; do
+		((OperateFailedRepoCnt+=1))
+		echo "|--->$OperateFailedRepoCnt $path" >> AutoGitTaskLog.txt
+	done
+	echo "↑---- end -----" >> AutoGitTaskLog.txt
+
+	if [ $OperateFailedRepoCnt -eq 0 ]; then
+		sed -i "s/Init/Congratulations! We have found a total of $TotalRepoCnt repositories that have been successfully operated!\n在此盘下共检测到 $TotalRepoCnt 个仓库，均已操作成功！/g" AutoGitTaskLog.txt
+	else
+		sed -i "s/Init/Unexpectedly!  A total of $TotalRepoCnt repositories were detected under this disk, Among them, $OperateFailedRepoCnt repositories were not successfully operated. The specific content is as follows.\n在此盘下共检测到 $TotalRepoCnt 个仓库，其中有 $OperateFailedRepoCnt 个仓库未能成功操作，具体内容如下。/g" AutoGitTaskLog.txt
 	fi
+	echo "" >> AutoGitTaskLog.txt
+	echo "The index parent path is ($IndexParentPath)" >> AutoGitTaskLog.txt
+	echo "The log file path is ($LogFilePath--AutoGitTaskLog.txt)" >> AutoGitTaskLog.txt
+	echo "The operate is ($GitOperate)" >> AutoGitTaskLog.txt
+	echo "The max operated repos is ($MaxRepoSrh)" >> AutoGitTaskLog.txt
+	echo "The Debug log status is ($Debug)" >> AutoGitTaskLog.txt
+}
+
+
+#check if the repos has remote address
+function f_check_remote(){
+	remote_url=`git remote -v`
+	if [ -z "$remote_url" ]; then
+		f_debug "The current repository is not linked to a remote repository."
+		Failed_repos+=("`pwd`")
+		return 1
+	else
+		:
+		return 0
+		# echo "The current repository is linked to a remote repository with URL: $remote_url"
+	fi
+}
+
+
+#initialize Cnt
+function f_init(){
+	TotalRepoCnt=0
+	CurRepoCnt=1
+	OperatePASSRepoCnt=0
+	OperateFailedRepoCnt=0
+}
+
+#if debug mode = 1, then print the info in bash
+function f_debug(){
+	if [ 1 -eq "${Debug:-0}" ]; then
+		echo -e "$1"
+	fi
+}
+
+#find the all git repos in the parent path
+function f_find(){
+	# 使用find命令搜索文件，并通过管道传递给read命令来读取每一行，然后存储到数组中
+	while IFS= read -r line; do
+		((TotalRepoCnt+=1)) 
+		PathArray+=("$line")
+	done < <(find "$IndexParentPath" -type d -name ".git")
 }
 
 
 #main function
-function f_operate(){
-#check if the `find` Non
-	if [ "$?" -ne 0 ]; then
-	 	echo "No Target Repostory"
-		exit 1
-	fi
-#stage parent path
-	ParentPath=`pwd`
-#cd parent path for create a log file which will appending issues by the recursive fetch
-	cd "$ParentPath"
-#split line
-	echo "----- start -----"
-#total display
-	echo "The number of total git repository is $#"
-	for ProcessingRepo in $*
+function f_main(){
+	f_check_var
+	f_init
+	f_find
+	#total display
+	f_debug "The number of total git repository is $TotalRepoCnt"
+	#split line
+	f_debug "----- start -----"
+	for ProcessingRepo in "${PathArray[@]}"
 	do
-#the max repo limit
+	#the max repo limit
 		if test $CurRepoCnt -gt $MaxRepoSrh
 		then
-			echo "Too many repository, the limit times can be changed using variable <MaxRepoSrh>, and now it is $MaxRepoSrh"
+			f_debug "Too many repository, the limit times can be changed using variable <MaxRepoSrh>, and now it is $MaxRepoSrh"
 			CurRepoCnt=1
 			break
 		fi
-#display the index of repo
-		echo "----- $CurRepoCnt/$# -----"
-		let "CurRepoCnt++"
-#becase of the cmd, the current will been changed by cd and fetch, for the next cycle, we have to make the path back
-		cd "$ParentPath"
-#check if the repo has add remote, if not then continue
+	#display the index of repo
+		f_debug "----- $CurRepoCnt/$TotalRepoCnt -----"
+		((CurRepoCnt+=1))
+	# #check if the repo has add remote, if not then continue
 		cd "$ProcessingRepo"
-		echo "Git repository path is `pwd`"
-		remote_url=`git remote -v`
-		if [ -z "$remote_url" ]; then
-			echo "The current repository is not linked to a remote repository."
-			let "FetchFailedRepoCnt++"
-			f_log "$FetchFailedRepoCnt" "`pwd`"
+		f_check_remote
+		if [ 1 -eq "$?" ]; then
 			continue
-		else
-		  	:
-			# echo "The current repository is linked to a remote repository with URL: $remote_url"
 		fi
-#enter and operate
-		if [ "Fetch" == "$GitOperate" ]
-		then
-			git fetch --all
-		elif [ "Pull" == "$GitOperate" ]
-		then
-			git pull
+	#enter and operate
+		if [ "Fetch" == "$GitOperate" ]; then
+			# git fetch --all 2>> AutoGitTaskLog.txt
+			Error_output=$(git fetch --all 2>&1 > /dev/null)
+		elif [ "Pull" == "$GitOperate" ]; then
+			Error_output=$(git pull 2>&1 > /dev/null)
 		else
-		 	:
+		 	git log 1 --oneline
 		fi
-#check whether the cmd completed
-		if [ "$?" -eq 0 ]
-		then
-			echo "Update completed!"
+	#check whether the cmd completed
+		if [ "$?" -eq 0 ]; then
+			Success_repos+=("`pwd`")
+			f_debug "Update completed!"
 		else
-			let "FetchFailedRepoCnt++"
-#log the path that fetch failed in the log file named GitAutoFetchLogFile
-			f_log "$FetchFailedRepoCnt" "`pwd`"
+		 	Failed_repos+=("`pwd`--→$Error_output")
+			f_debug "Operate failed."
+			f_debug "$Error_output"
+			cd "$LogFilePath"
 		fi
 	done
-#go to the LogFilePath to substitute the first line "Init" by the result of script
-	cd "$LogFilePath"
-	echo "Run time is :$Current_time">>AutoGitTaskLog.txt
-	if [ $FetchFailedRepoCnt -eq 0 ]
-	then 
-		sed -i "s/Init/Congratulations! We have found a total of $# repositories that have been successfully operated!\n在此盘下共检测到 $# 个仓库，均已操作成功！/g" AutoGitTaskLog.txt
-	else
-		sed -i "s/Init/Unexpectedly!  A total of $# repositories were detected under this disk, Among them, $FetchFailedRepoCnt repositories were not successfully operated. The specific content is as follows.\n在此盘下共检测到 $# 个仓库，其中有 $FetchFailedRepoCnt 个仓库未能成功操作，具体内容如下。/g" AutoGitTaskLog.txt
-#reset the cnt, or the next invoke will cnt continue
-		FetchFailedRepoCnt=0
-	fi
+	f_log
+	echo "Finish, time: $Current_time"
 }
-
-#####define end#####
 
 
 #####RUN#####
-f_check_var
-echo "Enter $IndexParentPath"
-cd "$IndexParentPath"
-f_operate `find $IndexParentPath * -mount -maxdepth 2 -not -path "C:\\*" -a -name .git|xargs dirname`
+f_main
